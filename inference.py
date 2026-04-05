@@ -1,33 +1,31 @@
-import os
+from fastapi import FastAPI
+from pydantic import BaseModel
 from env.drone_env import DroneEnv
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
-MODEL_NAME = os.getenv("MODEL_NAME", "default-model")
-HF_TOKEN = os.getenv("HF_TOKEN")
+app = FastAPI()
 
-def simple_agent(state):
-    dx = state["target"][0] - state["position"][0]
-    dy = state["target"][1] - state["position"][1]
+env = DroneEnv()
+state = env.reset()
 
-    if abs(dx) > abs(dy):
-        return 3 if dx > 0 else 2
-    else:
-        return 0 if dy > 0 else 1
+class Action(BaseModel):
+    action: int
 
-def run():
-    env = DroneEnv(difficulty="medium")
+@app.post("/reset")
+def reset():
+    global state
     state = env.reset()
+    return state
 
-    done = False
-    total_reward = 0
+@app.post("/step")
+def step(action: Action):
+    global state
+    state, reward, done, _ = env.step(action.action)
+    return {
+        "state": state,
+        "reward": reward,
+        "done": done
+    }
 
-    while not done:
-        action = simple_agent(state)
-        state, reward, done, _ = env.step(action)
-        total_reward += reward
-
-    print("Total Reward:", total_reward)
-    return total_reward
-
-if __name__ == "__main__":
-    run()
+@app.get("/state")
+def get_state():
+    return state
